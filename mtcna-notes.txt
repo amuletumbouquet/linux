@@ -1,0 +1,361 @@
+
+========================LINUX========================
+
+================UBUNTU================
+1) Configure network
+   >cd /etc/netplan
+   >sudo nano 00-installer-config.yaml
+   (IP DHCP)
+   network:
+     version: 2
+     renderer: networkd
+     ethernets:
+       enp0s3:
+         dhcp4: true
+       enp0s8:
+         dhcp4: true
+
+   (IP STATIC)
+   network:
+     version: 2
+     renderer: networkd
+     ethernets:
+       enp0s3:
+         dhcp4: no
+         addresses: [192.168.1.100/24]
+         gateway4: 192.168.1.1
+         nameservers:
+           addresses: [8.8.8.8,8.8.4.4]
+>sudo netplan apply
+>sudo apt-get update
+
+
+2) DNS
+   >apt install bind9 dnsutils -y
+   >cd /etc/bind
+   >cp db.local db.usk
+   >cp db.local db.absen
+   >cp db.127 db.192
+   >cp named.conf.default-zones named.conf.local
+   >nano db.usk db.absen db.192 named.conf.local named.conf.options
+    *db.usk
+     ;
+     ; BIND data file for local loopback interface
+     ;
+     $TTL    604800
+     @       IN      SOA     usk13341.net. root.usk13341.net. (
+                                   2         ; Serial
+                              604800         ; Refresh
+                               86400         ; Retry
+                             2419200         ; Expire
+                              604800 )       ; Negative Cache TTL
+     ;
+     @       IN      NS      usk13341.net.
+     @       IN      A       172.16.21.135
+     www     IN      A       172.16.21.135
+     cctv    IN      A       172.16.21.134
+     voip    IN      A       172.16.21.136
+     cacti   IN      A       172.16.21.135
+
+    *db.absen
+     ;
+     ; BIND data file for local loopback interface
+     ;
+     $TTL    604800
+     @       IN      SOA     absen3.my.id. root.absen3.my.id. (
+                                   2         ; Serial
+                              604800         ; Refresh
+                               86400         ; Retry
+                             2419200         ; Expire
+                              604800 )       ; Negative Cache TTL
+     ;
+     @       IN      NS      absen3.my.id.
+     @       IN      A       172.16.21.135
+     www     IN      A       172.16.21.135
+     mail    IN      A       172.16.21.135
+     absen3.my.id    IN      MX 10   mail.absen3.my.id
+
+    *db.192
+     ;
+     ; BIND reverse data file for local loopback interface
+     ;
+     $TTL    604800
+     @       IN      SOA     usk13341.net. root.usk13341.net. (
+                                   1         ; Serial
+                              604800         ; Refresh
+                               86400         ; Retry
+                             2419200         ; Expire
+                             604800 )       ; Negative Cache TTL
+     ;
+     @       IN      NS      usk13341.net.
+     135     IN      PTR     usk13341.net.
+     135     IN      PTR     www.usk13341.net.
+     134     IN      PTR     cctv.usk13341.net.
+     136     IN      PTR     voip.usk13341.net.
+     135     IN      PTR     cacti.usk13341.net.
+     135     IN      PTR     absen3.my.id.
+     135     IN      PTR     www.absen3.my.id.
+     135     IN      PTR     mail.absen3.my.id.
+    
+    *named.conf.local
+     zone "usk13341.net" {
+             type master;
+             file "/etc/bind/db.usk";
+     };
+
+     zone "absen3.my.id" {
+             type master;
+             file "/etc/bind/db.absen";
+     };
+
+     zone "21.16.172.in-addr.arpa" {
+             type master;
+             file "/etc/bind/db.192";
+     };
+
+    *named.conf.options
+     forwarders {
+             8.8.8.8;
+             8.8.4.4;
+     };
+     dnssec-validation no;
+
+   >systemctl restart bind9
+   >apt install resolvconf
+   >nano /etc/resolvconf/resolv.conf.d/head
+    nameserver 172.16.21.135
+   >nano /etc/resolv.conf
+    nameserver 172.16.21.135
+
+
+3) Cacti
+   >apt install cacti snmp snmpd -y (password: 123)
+   >nano /etc/snmp/snmpd.conf
+    agentaddress udp:172.16.21.135:161
+    rocommunity  public 172.16.21.135
+   >systemctl restart snmpd
+   >snmpwalk -v2c -c public 172.16.21.135
+   >chmod -R 777 /usr/share/cacti/site
+
+   >cd /etc/apache2/sites-available
+   >cp 000-default.conf cacti.conf
+   >nano cacti.conf
+    ServerName cacti.usk13341.net
+    ServerAdmin webmaster@localhost
+    DocumentRoot /usr/share/cacti/site
+   >a2ensite cacti.conf
+   >systemctl restart apache2
+
+   *login Cacti
+    username: admin
+    password: 123
+
+
+4) Mail server
+   >apt install postfix roundcube dovecot-imapd dovecot-pop3d -y
+   >nano /etc/postfix/main.cf
+    home_mailbox = Maildir/ (tambahkan di paling bawah)
+   >cd /etc/skel
+   >maildirmake.dovecot /etc/skel/Maildir
+   >dpkg-reconfigure postfix
+   >cd /etc/dovecot/conf.d
+   >nano 10-mail.conf
+    mail_location = maildir:~/Maildir
+    #mail_location = mbox:~/mail:INBOX=/var/mail/%u
+   >nano 10-auth.conf
+    disable_plaintext_auth = no
+   >cd /etc/roundcube
+   >nano config.inc.php
+    $config['default_host'] = 'mail.absen3.my.id';
+
+    $config['smtp_server'] = 'mail.absen3.my.id';
+
+    // SMTP port. Use 25 for cleartext, 465 for Implicit TLS, or 587 for STARTTLS (default)
+    $config['smtp_port'] = 25;
+
+    // SMTP username (if required) if you use %u as the username Roundcube
+    // will use the current username for login
+    $config['smtp_user'] = '';
+
+    // SMTP password (if required) if you use %p as the password Roundcube
+    // will use the current user's password for login
+    $config['smtp_pass'] = '';
+
+    // provide an URL where a user can get support for this Roundcube installation
+    // PLEASE DO NOT LINK TO THE ROUNDCUBE.NET WEBSITE HERE!
+    $config['support_url'] = '';
+
+   >cd /etc/apache2/sites-available
+   >cp 000-default.conf mail.conf
+   >nano mail.conf
+    ServerName mail.absen3.my.id
+    ServerAdmin webmaster@localhost
+    DocumentRoot /var/lib/roundcube
+   >a2ensite mail.conf
+   >nano /etc/apache2/apache2.conf
+    <Directory /var/lib/>
+            Options -Indexes +FollowSymLinks
+            AllowOverride All
+            Require all granted
+    </Directory>
+   >systemctl restart apache2 postfix dovecot
+
+   >adduser: billing
+    password: billing
+   >adduser: ceo
+    password: ceo
+
+
+5) Wordpress
+   >wget http://wordpress.org/latest.zip
+   >apt install unzip -y
+   >unzip latest.zip -d /var/www/usk
+   >unzip latest.zip -d /var/www/absen
+   >mysql -u root
+    MariaDB [(none)]> create database wpusk;
+    Query OK, 1 row affected (0.001 sec)
+    
+    MariaDB [(none)]> create database wpabsen;
+    Query OK, 1 row affected (0.001 sec)
+
+    MariaDB [(none)]> grant all privileges on wpusk.* to 'admin'@'localhost'
+    identified by '123';
+
+    MariaDB [(none)]> grant all privileges on wpabsen.* to 'admin'@'localhost'
+    identified by '123';
+
+     MariaDB [(none)]> exit
+
+  >cd /var/www/usk/wordpress
+  >cp wp-config-sample.php wp-config.php
+  >nano wp-config.php
+   /** The name of the database for WordPress */
+   define( 'DB_NAME', 'wpusk' );
+
+   /** Database username */
+   define( 'DB_USER', 'admin' );
+ 
+   /** Database password */
+   define( 'DB_PASSWORD', '123' );
+
+   /** Database hostname */
+   define( 'DB_HOST', 'localhost' );
+
+   /** Database charset to use in creating database tables. */
+   define( 'DB_CHARSET', 'utf8' );
+
+   /** The database collate type. Don't change this if in doubt. */
+   define( 'DB_COLLATE', '' );
+
+  >cd /var/www/absen/wordpress
+  >cp wp-config-sample.php wp-config.php
+  >nano wp-config.php
+   /** The name of the database for WordPress */
+   define( 'DB_NAME', 'wpabsen' );
+
+   /** Database username */
+   define( 'DB_USER', 'admin' );
+ 
+   /** Database password */
+   define( 'DB_PASSWORD', '123' );
+
+   /** Database hostname */
+   define( 'DB_HOST', 'localhost' );
+
+   /** Database charset to use in creating database tables. */
+   define( 'DB_CHARSET', 'utf8' );
+
+   /** The database collate type. Don't change this if in doubt. */
+   define( 'DB_COLLATE', '' );
+
+   >cd /etc/apache2/sites-available
+   >cp 000-default.conf wpusk.conf
+   >nano wpusk.conf
+    ServerName usk13341.net
+    ServerAlias www.usk13341.net
+    ServerAdmin webmaster@localhost
+    DocumentRoot /var/www/usk/wordpress
+   >cp 000-default.conf wpabsen.conf
+   >nano wpabsen.conf
+    ServerName absen3.my.id
+    ServerAlias www.absen3.my.id
+    ServerAdmin webmaster@localhost
+    DocumentRoot /var/www/absen/wordpress
+   >a2dissite 000-default.conf
+   >a2ensite wpusk.conf wpabsen.conf
+   >systemctl restart apache2
+
+   *install wordpress 1
+    site name: WordPress usk13341.net
+    username: admin
+    password: wpusk
+   *install wordpress 2
+    site name: WordPress absen3.my.id
+    username: admin
+    password: wpabsen
+
+
+6) PhpMyAdmin
+   >wget https://files.phpmyadmin.net/phpMyAdmin/5.2.0/phpMyAdmin-5.2.0-all-languages.zip
+   >unzip phpMyAdmin-5.2.0-all-languages.zip -d /usr/share
+   >cd /usr/share
+   >mv phpMyAdmin-5.2.0-all-languages pma
+   >mysql -u root
+    MariaDB [(none)]> create database phpmyadmin;
+    Query OK, 1 row affected (0.000 sec)
+
+    MariaDB [(none)]> grant all privileges on wordpress.* to 'admin'@'localhost' identified by '123';
+    Query OK, 0 rows affected (0.027 sec)
+
+    MariaDB [(none)]> flush privileges;
+    Query OK, 0 rows affected (0.002 sec)
+
+    MariaDB [(none)]> exit
+
+   >cd /usr/share/pma
+   >cp config.sample.inc.php config.inc.php
+   >nano config.inc.php
+    /* User used to manipulate with storage */
+    $cfg['Servers'][$i]['controlhost'] = 'localhost';
+    $cfg['Servers'][$i]['controlport'] = '3306';
+    $cfg['Servers'][$i]['controluser'] = 'admin';
+    $cfg['Servers'][$i]['controlpass'] = '123';
+
+    /* Storage database and tables */
+    $cfg['Servers'][$i]['pmadb'] = 'phpmyadmin';
+    $cfg['Servers'][$i]['bookmarktable'] = 'pma__bookmark';
+    $cfg['Servers'][$i]['relation'] = 'pma__relation';
+    $cfg['Servers'][$i]['table_info'] = 'pma__table_info';
+    $cfg['Servers'][$i]['table_coords'] = 'pma__table_coords';
+    $cfg['Servers'][$i]['pdf_pages'] = 'pma__pdf_pages';
+    $cfg['Servers'][$i]['column_info'] = 'pma__column_info';
+    $cfg['Servers'][$i]['history'] = 'pma__history';
+    $cfg['Servers'][$i]['table_uiprefs'] = 'pma__table_uiprefs';
+    $cfg['Servers'][$i]['tracking'] = 'pma__tracking';
+    $cfg['Servers'][$i]['userconfig'] = 'pma__userconfig';
+    $cfg['Servers'][$i]['recent'] = 'pma__recent';
+    $cfg['Servers'][$i]['favorite'] = 'pma__favorite';
+    $cfg['Servers'][$i]['users'] = 'pma__users';
+    $cfg['Servers'][$i]['usergroups'] = 'pma__usergroups';
+    $cfg['Servers'][$i]['navigationhiding'] = 'pma__navigationhiding';
+    $cfg['Servers'][$i]['savedsearches'] = 'pma__savedsearches';
+    $cfg['Servers'][$i]['central_columns'] = 'pma__central_columns';
+    $cfg['Servers'][$i]['designer_settings'] = 'pma__designer_settings';
+    $cfg['Servers'][$i]['export_templates'] = 'pma__export_templates';
+   
+   >cd /etc/apache2/sites-available/
+   >cp 000-default.conf pma.conf
+   >nano pma.conf
+    ServerName usk13341.net
+    ServerAlias www.usk13341.net
+    ServerAdmin webmaster@localhost
+    DocumentRoot /var/www/
+    Alias /phpmyadmin /usr/share/pma
+   >sudo a2ensite pma.conf
+   >sudo systemctl restart apache2
+
+   >mysql_secure_installation
+    root password: 123
+   *phpmyadmin login
+    username: root
+    password: 123
