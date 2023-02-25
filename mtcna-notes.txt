@@ -1,7 +1,6 @@
 
 ========================LINUX========================
 
-================UBUNTU================
 1) Configure network
    >cd /etc/netplan
    >sudo nano 00-installer-config.yaml
@@ -26,8 +25,16 @@
          gateway4: 192.168.1.1
          nameservers:
            addresses: [8.8.8.8,8.8.4.4]
->sudo netplan apply
->sudo apt-get update
+   >sudo netplan apply
+   >sudo apt-get update
+   
+   >nano /etc/network/interfaces
+    auto enp0s3
+    iface enp0s3 inet static
+       address 172.16.21.135/25
+       gateway 172.16.21.129
+   >systemctl restart networking
+   >ip a
 
 
 2) DNS
@@ -226,47 +233,47 @@
 
      MariaDB [(none)]> exit
 
-  >cd /var/www/usk/wordpress
-  >cp wp-config-sample.php wp-config.php
-  >nano wp-config.php
-   /** The name of the database for WordPress */
-   define( 'DB_NAME', 'wpusk' );
+   >cd /var/www/usk/wordpress
+   >cp wp-config-sample.php wp-config.php
+   >nano wp-config.php
+    /** The name of the database for WordPress */
+    define( 'DB_NAME', 'wpusk' );
 
-   /** Database username */
-   define( 'DB_USER', 'admin' );
+    /** Database username */
+    define( 'DB_USER', 'admin' );
  
-   /** Database password */
-   define( 'DB_PASSWORD', '123' );
+    /** Database password */
+    define( 'DB_PASSWORD', '123' );
 
-   /** Database hostname */
-   define( 'DB_HOST', 'localhost' );
+    /** Database hostname */
+    define( 'DB_HOST', 'localhost' );
 
-   /** Database charset to use in creating database tables. */
-   define( 'DB_CHARSET', 'utf8' );
-
-   /** The database collate type. Don't change this if in doubt. */
-   define( 'DB_COLLATE', '' );
-
-  >cd /var/www/absen/wordpress
-  >cp wp-config-sample.php wp-config.php
-  >nano wp-config.php
-   /** The name of the database for WordPress */
-   define( 'DB_NAME', 'wpabsen' );
-
-   /** Database username */
-   define( 'DB_USER', 'admin' );
+    /** Database charset to use in creating database tables. */
+    define( 'DB_CHARSET', 'utf8' );
  
-   /** Database password */
-   define( 'DB_PASSWORD', '123' );
+    /** The database collate type. Don't change this if in doubt. */
+    define( 'DB_COLLATE', '' );
 
-   /** Database hostname */
-   define( 'DB_HOST', 'localhost' );
+   >cd /var/www/absen/wordpress
+   >cp wp-config-sample.php wp-config.php
+   >nano wp-config.php
+    /** The name of the database for WordPress */
+    define( 'DB_NAME', 'wpabsen' );
+ 
+    /** Database username */
+    define( 'DB_USER', 'admin' );
+  
+    /** Database password */
+    define( 'DB_PASSWORD', '123' );
 
-   /** Database charset to use in creating database tables. */
-   define( 'DB_CHARSET', 'utf8' );
+    /** Database hostname */
+    define( 'DB_HOST', 'localhost' );
 
-   /** The database collate type. Don't change this if in doubt. */
-   define( 'DB_COLLATE', '' );
+    /** Database charset to use in creating database tables. */
+    define( 'DB_CHARSET', 'utf8' );
+
+    /** The database collate type. Don't change this if in doubt. */
+    define( 'DB_COLLATE', '' );
 
    >cd /etc/apache2/sites-available
    >cp 000-default.conf wpusk.conf
@@ -351,8 +358,8 @@
     ServerAdmin webmaster@localhost
     DocumentRoot /var/www/
     Alias /phpmyadmin /usr/share/pma
-   >sudo a2ensite pma.conf
-   >sudo systemctl restart apache2
+   >a2ensite pma.conf
+   >systemctl restart apache2
 
    >mysql_secure_installation
     root password: 123
